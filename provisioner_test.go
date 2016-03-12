@@ -1,4 +1,4 @@
-package ansible
+package fabric
 
 import (
 	"crypto/rand"
@@ -12,7 +12,7 @@ import (
 	"github.com/mitchellh/packer/packer"
 )
 
-// Be sure to remove the Ansible stub file in each test with:
+// Be sure to remove the Fabric stub file in each test with:
 //   defer os.Remove(config["command"].(string))
 func testConfig(t *testing.T) map[string]interface{} {
 	m := make(map[string]interface{})
@@ -20,13 +20,13 @@ func testConfig(t *testing.T) map[string]interface{} {
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	ansible_stub := path.Join(wd, "packer-ansible-stub.sh")
+	fabric_stub := path.Join(wd, "packer-fabric-stub.sh")
 
-	err = ioutil.WriteFile(ansible_stub, []byte("#!/usr/bin/env bash\necho ansible 1.6.0"), 0777)
+	err = ioutil.WriteFile(fabric_stub, []byte("#!/usr/bin/env bash\necho -e \"Fabric 1.10.2\nParamiko 1.16.0\""), 0777)
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	m["command"] = ansible_stub
+	m["command"] = fabric_stub
 
 	return m
 }
@@ -61,22 +61,22 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 	}
 	defer os.Remove(publickey_file.Name())
 
-	playbook_file, err := ioutil.TempFile("", "playbook")
+	fab_file, err := ioutil.TempFile("", "fabfile")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	defer os.Remove(playbook_file.Name())
+	defer os.Remove(fab_file.Name())
 
 	config["ssh_host_key_file"] = hostkey_file.Name()
 	config["ssh_authorized_key_file"] = publickey_file.Name()
-	config["playbook_file"] = playbook_file.Name()
+	config["fab_file"] = fab_file.Name()
 	err = p.Prepare(config)
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
 }
 
-func TestProvisionerPrepare_PlaybookFile(t *testing.T) {
+func TestProvisionerPrepare_FabFile(t *testing.T) {
 	var p Provisioner
 	config := testConfig(t)
 	defer os.Remove(config["command"].(string))
@@ -101,13 +101,13 @@ func TestProvisionerPrepare_PlaybookFile(t *testing.T) {
 		t.Fatal("should have error")
 	}
 
-	playbook_file, err := ioutil.TempFile("", "playbook")
+	fab_file, err := ioutil.TempFile("", "fabfile")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	defer os.Remove(playbook_file.Name())
+	defer os.Remove(fab_file.Name())
 
-	config["playbook_file"] = playbook_file.Name()
+	config["fab_file"] = fab_file.Name()
 	err = p.Prepare(config)
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -125,11 +125,11 @@ func TestProvisionerPrepare_HostKeyFile(t *testing.T) {
 	}
 	defer os.Remove(publickey_file.Name())
 
-	playbook_file, err := ioutil.TempFile("", "playbook")
+	fab_file, err := ioutil.TempFile("", "fabfile")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	defer os.Remove(playbook_file.Name())
+	defer os.Remove(fab_file.Name())
 
 	filename := make([]byte, 10)
 	n, err := io.ReadFull(rand.Reader, filename)
@@ -139,7 +139,7 @@ func TestProvisionerPrepare_HostKeyFile(t *testing.T) {
 
 	config["ssh_host_key_file"] = fmt.Sprintf("%x", filename)
 	config["ssh_authorized_key_file"] = publickey_file.Name()
-	config["playbook_file"] = playbook_file.Name()
+	config["fab_file"] = fab_file.Name()
 
 	err = p.Prepare(config)
 	if err == nil {
@@ -170,11 +170,11 @@ func TestProvisionerPrepare_AuthorizedKeyFile(t *testing.T) {
 	}
 	defer os.Remove(hostkey_file.Name())
 
-	playbook_file, err := ioutil.TempFile("", "playbook")
+	fab_file, err := ioutil.TempFile("", "fabfile")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	defer os.Remove(playbook_file.Name())
+	defer os.Remove(fab_file.Name())
 
 	filename := make([]byte, 10)
 	n, err := io.ReadFull(rand.Reader, filename)
@@ -183,7 +183,7 @@ func TestProvisionerPrepare_AuthorizedKeyFile(t *testing.T) {
 	}
 
 	config["ssh_host_key_file"] = hostkey_file.Name()
-	config["playbook_file"] = playbook_file.Name()
+	config["fab_file"] = fab_file.Name()
 	config["ssh_authorized_key_file"] = fmt.Sprintf("%x", filename)
 
 	err = p.Prepare(config)
@@ -221,15 +221,15 @@ func TestProvisionerPrepare_LocalPort(t *testing.T) {
 	}
 	defer os.Remove(publickey_file.Name())
 
-	playbook_file, err := ioutil.TempFile("", "playbook")
+	fab_file, err := ioutil.TempFile("", "fabfile")
 	if err != nil {
 		t.Fatalf("err: %s", err)
 	}
-	defer os.Remove(playbook_file.Name())
+	defer os.Remove(fab_file.Name())
 
 	config["ssh_host_key_file"] = hostkey_file.Name()
 	config["ssh_authorized_key_file"] = publickey_file.Name()
-	config["playbook_file"] = playbook_file.Name()
+	config["fab_file"] = fab_file.Name()
 
 	config["local_port"] = "65537"
 	err = p.Prepare(config)

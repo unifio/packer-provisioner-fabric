@@ -1,4 +1,4 @@
-package ansible
+package fabric
 
 import (
 	"bufio"
@@ -33,33 +33,29 @@ type Config struct {
 	common.PackerConfig `mapstructure:",squash"`
 	ctx                 interpolate.Context
 
-	// The command to run ansible
+	// The command to run fabric
 	Command string
 
-	// Extra options to pass to the ansible command
+	// Extra options to pass to the fabric command
 	ExtraArguments []string `mapstructure:"extra_arguments"`
 
-	AnsibleEnvVars []string `mapstructure:"ansible_env_vars"`
+	FabricEnvVars []string `mapstructure:"fabric_env_vars"`
 
-	// The main playbook file to execute.
-	PlaybookFile         string   `mapstructure:"playbook_file"`
-	Groups               []string `mapstructure:"groups"`
-	EmptyGroups          []string `mapstructure:"empty_groups"`
-	HostAlias            string   `mapstructure:"host_alias"`
+	// The main Fab file to execute.
+	FabFile              string   `mapstructure:"fab_file"`
+	FabTasks             string   `mapstructure:"fab_tasks"`
 	User                 string   `mapstructure:"user"`
 	LocalPort            string   `mapstructure:"local_port"`
 	SSHHostKeyFile       string   `mapstructure:"ssh_host_key_file"`
 	SSHAuthorizedKeyFile string   `mapstructure:"ssh_authorized_key_file"`
-	SFTPCmd              string   `mapstructure:"sftp_command"`
-	inventoryFile        string
 }
 
 type Provisioner struct {
-	config            Config
-	adapter           *adapter
-	done              chan struct{}
-	ansibleVersion    string
-	ansibleMajVersion uint
+	config        Config
+	adapter       *adapter
+	done          chan struct{}
+	fabVersion    string
+	fabMajVersion uint
 }
 
 func (p *Provisioner) Prepare(raws ...interface{}) error {
@@ -78,15 +74,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 
 	// Defaults
 	if p.config.Command == "" {
-		p.config.Command = "ansible-playbook"
-	}
-
-	if p.config.HostAlias == "" {
-		p.config.HostAlias = "default"
+		p.config.Command = "fab"
 	}
 
 	var errs *packer.MultiError
-	err = validateFileConfig(p.config.PlaybookFile, "playbook_file", true)
+	err = validateFileConfig(p.config.FabFile, "fab_file", true)
 	if err != nil {
 		errs = packer.MultiErrorAppend(errs, err)
 	}
@@ -139,7 +131,7 @@ func (p *Provisioner) getVersion() error {
 		return err
 	}
 
-	versionRe := regexp.MustCompile(`\w (\d+\.\d+[.\d+]*)`)
+	versionRe := regexp.MustCompile(`Fabric (\d+\.\d+[.\d+]*)`)
 	matches := versionRe.FindStringSubmatch(string(out))
 	if matches == nil {
 		return fmt.Errorf(
@@ -148,19 +140,19 @@ func (p *Provisioner) getVersion() error {
 
 	version := matches[1]
 	log.Printf("%s version: %s", p.config.Command, version)
-	p.ansibleVersion = version
+	p.fabVersion = version
 
 	majVer, err := strconv.ParseUint(strings.Split(version, ".")[0], 10, 0)
 	if err != nil {
 		return fmt.Errorf("Could not parse major version from \"%s\".", version)
 	}
-	p.ansibleMajVersion = uint(majVer)
+	p.fabMajVersion = uint(majVer)
 
 	return nil
 }
 
 func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
-	ui.Say("Provisioning with Ansible...")
+	ui.Say("Provisioning with Fabric...")
 
 	k, err := newUserKey(p.config.SSHAuthorizedKeyFile)
 	if err != nil {
@@ -231,7 +223,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	}
 
 	ui = newUi(ui)
-	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm)
+	p.adapter = newAdapter(p.done, localListener, config, "", ui, comm)
 
 	defer func() {
 		ui.Say("shutting down the SSH proxy")
@@ -241,43 +233,8 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 
 	go p.adapter.Serve()
 
-	if len(p.config.inventoryFile) == 0 {
-		tf, err := ioutil.TempFile("", "packer-provisioner-ansible")
-		if err != nil {
-			return fmt.Errorf("Error preparing inventory file: %s", err)
-		}
-		defer os.Remove(tf.Name())
-
-		host := fmt.Sprintf("%s ansible_host=127.0.0.1 ansible_user=%s ansible_port=%s\n",
-			p.config.HostAlias, p.config.User, p.config.LocalPort)
-		if p.ansibleMajVersion < 2 {
-			host = fmt.Sprintf("%s ansible_ssh_host=127.0.0.1 ansible_ssh_user=%s ansible_ssh_port=%s\n",
-				p.config.HostAlias, p.config.User, p.config.LocalPort)
-		}
-
-		w := bufio.NewWriter(tf)
-		w.WriteString(host)
-		for _, group := range p.config.Groups {
-			fmt.Fprintf(w, "[%s]\n%s", group, host)
-		}
-
-		for _, group := range p.config.EmptyGroups {
-			fmt.Fprintf(w, "[%s]\n", group)
-		}
-
-		if err := w.Flush(); err != nil {
-			tf.Close()
-			return fmt.Errorf("Error preparing inventory file: %s", err)
-		}
-		tf.Close()
-		p.config.inventoryFile = tf.Name()
-		defer func() {
-			p.config.inventoryFile = ""
-		}()
-	}
-
-	if err := p.executeAnsible(ui, comm, k.privKeyFile, !hostSigner.generated); err != nil {
-		return fmt.Errorf("Error executing Ansible: %s", err)
+	if err := p.executeFabric(ui, comm, k.privKeyFile, !hostSigner.generated); err != nil {
+		return fmt.Errorf("Error executing Fabric: %s", err)
 	}
 
 	return nil
@@ -293,18 +250,24 @@ func (p *Provisioner) Cancel() {
 	os.Exit(0)
 }
 
-func (p *Provisioner) executeAnsible(ui packer.Ui, comm packer.Communicator, privKeyFile string, checkHostKey bool) error {
-	playbook, _ := filepath.Abs(p.config.PlaybookFile)
-	inventory := p.config.inventoryFile
+func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, privKeyFile string, checkHostKey bool) error {
+  fabfile, _ := filepath.Abs(p.config.FabFile)
+	hoststring := fmt.Sprintf("%s@127.0.0.1:%s",
+		p.config.User, p.config.LocalPort)
 	var envvars []string
 
-	args := []string{playbook, "-i", inventory}
+	args := []string{"-f", fabfile, "-H", hoststring}
 	if len(privKeyFile) > 0 {
-		args = append(args, "--private-key", privKeyFile)
+		args = append(args, "-i", privKeyFile)
+	}
+	if !checkHostKey {
+		args = append(args, "--disable-known-hosts")
 	}
 	args = append(args, p.config.ExtraArguments...)
-	if len(p.config.AnsibleEnvVars) > 0 {
-		envvars = append(envvars, p.config.AnsibleEnvVars...)
+	args = append(args, p.config.FabTasks)
+
+	if len(p.config.FabricEnvVars) > 0 {
+		envvars = append(envvars, p.config.FabricEnvVars...)
 	}
 
 	cmd := exec.Command(p.config.Command, args...)
@@ -312,8 +275,6 @@ func (p *Provisioner) executeAnsible(ui packer.Ui, comm packer.Communicator, pri
 	cmd.Env = os.Environ()
 	if len(envvars) > 0 {
 		cmd.Env = append(cmd.Env, envvars...)
-	} else if !checkHostKey {
-		cmd.Env = append(cmd.Env, "ANSIBLE_HOST_KEY_CHECKING=False")
 	}
 
 	stdout, err := cmd.StdoutPipe()
@@ -340,7 +301,7 @@ func (p *Provisioner) executeAnsible(ui packer.Ui, comm packer.Communicator, pri
 	go repeat(stdout)
 	go repeat(stderr)
 
-	ui.Say(fmt.Sprintf("Executing Ansible: %s", strings.Join(cmd.Args, " ")))
+	ui.Say(fmt.Sprintf("Executing Fabric: %s", strings.Join(cmd.Args, " ")))
 	cmd.Start()
 	wg.Wait()
 	err = cmd.Wait()
@@ -395,7 +356,7 @@ func newUserKey(pubKeyFile string) (*userKey, error) {
 		return nil, errors.New("Failed to extract public key from generated key pair")
 	}
 
-	// To support Ansible calling back to us we need to write
+	// To support Fabric calling back to us we need to write
 	// this file down
 	privateKeyDer := x509.MarshalPKCS1PrivateKey(key)
 	privateKeyBlock := pem.Block{
@@ -403,7 +364,7 @@ func newUserKey(pubKeyFile string) (*userKey, error) {
 		Headers: nil,
 		Bytes:   privateKeyDer,
 	}
-	tf, err := ioutil.TempFile("", "ansible-key")
+	tf, err := ioutil.TempFile("", "fabric-key")
 	if err != nil {
 		return nil, errors.New("failed to create temp file for generated key")
 	}
