@@ -48,6 +48,7 @@ type Config struct {
 	LocalPort            string   `mapstructure:"local_port"`
 	SSHHostKeyFile       string   `mapstructure:"ssh_host_key_file"`
 	SSHAuthorizedKeyFile string   `mapstructure:"ssh_authorized_key_file"`
+	SFTPCmd              string   `mapstructure:"sftp_command"`
 }
 
 type Provisioner struct {
@@ -223,7 +224,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	}
 
 	ui = newUi(ui)
-	p.adapter = newAdapter(p.done, localListener, config, "", ui, comm)
+	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm)
 
 	defer func() {
 		ui.Say("shutting down the SSH proxy")

@@ -50,7 +50,7 @@ The relative path to the fabfile to be utilized.
 
 ### fab_tasks
 
-Comma separated lit of tasks to be executed.
+Comma separated list of tasks to be executed.
 
 ### user (optional)
 
@@ -67,3 +67,7 @@ A system-chosen port is used when `local_port` is missing or empty.
 ### ssh_authorized_key_file (optional)
 
 (string) - The SSH public key of the Fabric ssh_user. The default behavior is to generate and use a onetime key. If this key is generated, the corresponding private key is passed to `fab` with the `-i` option.
+
+### sftp_command (optional)
+
+(string) - The command to run on the machine being provisioned by Packer to handle the SFTP protocol that Fabric will use to transfer files. The command should read and write on stdin and stdout, respectively. Defaults to `/usr/lib/sftp-server -e`.
