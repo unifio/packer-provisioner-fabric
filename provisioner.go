@@ -79,6 +79,10 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	}
 
 	var errs *packer.MultiError
+	if len(p.config.FabTasks) == 0 {
+		errs = packer.MultiErrorAppend(errs,
+			errors.New("fab_tasks must not be empty"))
+	}
 	err = validateFileConfig(p.config.FabFile, "fab_file", true)
 	if err != nil {
 		errs = packer.MultiErrorAppend(errs, err)
