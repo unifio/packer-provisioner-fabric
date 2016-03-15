@@ -70,6 +70,7 @@ func TestProvisionerPrepare_Defaults(t *testing.T) {
 	config["ssh_host_key_file"] = hostkey_file.Name()
 	config["ssh_authorized_key_file"] = publickey_file.Name()
 	config["fab_file"] = fab_file.Name()
+	config["fab_tasks"] = "test"
 	err = p.Prepare(config)
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -108,6 +109,7 @@ func TestProvisionerPrepare_FabFile(t *testing.T) {
 	defer os.Remove(fab_file.Name())
 
 	config["fab_file"] = fab_file.Name()
+	config["fab_tasks"] = "test"
 	err = p.Prepare(config)
 	if err != nil {
 		t.Fatalf("err: %s", err)
@@ -140,6 +142,7 @@ func TestProvisionerPrepare_HostKeyFile(t *testing.T) {
 	config["ssh_host_key_file"] = fmt.Sprintf("%x", filename)
 	config["ssh_authorized_key_file"] = publickey_file.Name()
 	config["fab_file"] = fab_file.Name()
+	config["fab_tasks"] = "test"
 
 	err = p.Prepare(config)
 	if err == nil {
@@ -184,6 +187,7 @@ func TestProvisionerPrepare_AuthorizedKeyFile(t *testing.T) {
 
 	config["ssh_host_key_file"] = hostkey_file.Name()
 	config["fab_file"] = fab_file.Name()
+	config["fab_tasks"] = "test"
 	config["ssh_authorized_key_file"] = fmt.Sprintf("%x", filename)
 
 	err = p.Prepare(config)
@@ -230,6 +234,7 @@ func TestProvisionerPrepare_LocalPort(t *testing.T) {
 	config["ssh_host_key_file"] = hostkey_file.Name()
 	config["ssh_authorized_key_file"] = publickey_file.Name()
 	config["fab_file"] = fab_file.Name()
+	config["fab_tasks"] = "test"
 
 	config["local_port"] = "65537"
 	err = p.Prepare(config)
