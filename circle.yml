@@ -22,6 +22,7 @@ test:
 
   override:
     - cd uat && packer build uat.json
+    - cd uat && packer build uat_multi.json
 
 general:
   artifacts:
