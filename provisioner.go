@@ -269,7 +269,10 @@ func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, priv
 		args = append(args, "--disable-known-hosts")
 	}
 	args = append(args, p.config.ExtraArguments...)
-	args = append(args, p.config.FabTasks)
+
+	for _,task := range strings.Split(p.config.FabTasks, ",") {
+	        args = append(args, task)
+	}
 
 	if len(p.config.FabricEnvVars) > 0 {
 		envvars = append(envvars, p.config.FabricEnvVars...)
