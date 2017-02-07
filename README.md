@@ -52,6 +52,10 @@ The relative path to the fabfile to be utilized.
 
 Comma separated list of tasks to be executed.
 
+### fab_tasks_delimiter (optional)
+
+Specific delimiter for task list. Default is comma `,`.
+
 ### user (optional)
 
 SSH user to be used to connect to the SSH server on the host machine to forward commands to the target machine.
