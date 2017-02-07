@@ -44,6 +44,7 @@ type Config struct {
 	// The main Fab file to execute.
 	FabFile              string   `mapstructure:"fab_file"`
 	FabTasks             string   `mapstructure:"fab_tasks"`
+	FabTasksDelimiter    string   `mapstructure:"fab_tasks_delimiter"`
 	User                 string   `mapstructure:"user"`
 	LocalPort            string   `mapstructure:"local_port"`
 	SSHHostKeyFile       string   `mapstructure:"ssh_host_key_file"`
@@ -76,6 +77,11 @@ func (p *Provisioner) Prepare(raws ...interface{}) error {
 	// Defaults
 	if p.config.Command == "" {
 		p.config.Command = "fab"
+	}
+
+	// Fabric task delimiter
+	if p.config.FabTasksDelimiter == "" {
+		p.config.FabTasksDelimiter = ","
 	}
 
 	var errs *packer.MultiError
@@ -270,7 +276,7 @@ func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, priv
 	}
 	args = append(args, p.config.ExtraArguments...)
 
-	for _,task := range strings.Split(p.config.FabTasks, ",") {
+	for _,task := range strings.Split(p.config.FabTasks, p.config.FabTasksDelimiter) {
 	        args = append(args, task)
 	}
 
