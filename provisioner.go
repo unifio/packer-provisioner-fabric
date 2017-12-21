@@ -23,10 +23,10 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/mitchellh/packer/common"
-	"github.com/mitchellh/packer/helper/config"
-	"github.com/mitchellh/packer/packer"
-	"github.com/mitchellh/packer/template/interpolate"
+	"github.com/hashicorp/packer/common"
+	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/packer"
+	"github.com/hashicorp/packer/template/interpolate"
 )
 
 type Config struct {
@@ -42,14 +42,14 @@ type Config struct {
 	FabricEnvVars []string `mapstructure:"fabric_env_vars"`
 
 	// The main Fab file to execute.
-	FabFile              string   `mapstructure:"fab_file"`
-	FabTasks             string   `mapstructure:"fab_tasks"`
-	FabTasksDelimiter    string   `mapstructure:"fab_tasks_delimiter"`
-	User                 string   `mapstructure:"user"`
-	LocalPort            string   `mapstructure:"local_port"`
-	SSHHostKeyFile       string   `mapstructure:"ssh_host_key_file"`
-	SSHAuthorizedKeyFile string   `mapstructure:"ssh_authorized_key_file"`
-	SFTPCmd              string   `mapstructure:"sftp_command"`
+	FabFile              string `mapstructure:"fab_file"`
+	FabTasks             string `mapstructure:"fab_tasks"`
+	FabTasksDelimiter    string `mapstructure:"fab_tasks_delimiter"`
+	User                 string `mapstructure:"user"`
+	LocalPort            string `mapstructure:"local_port"`
+	SSHHostKeyFile       string `mapstructure:"ssh_host_key_file"`
+	SSHAuthorizedKeyFile string `mapstructure:"ssh_authorized_key_file"`
+	SFTPCmd              string `mapstructure:"sftp_command"`
 }
 
 type Provisioner struct {
@@ -262,7 +262,7 @@ func (p *Provisioner) Cancel() {
 }
 
 func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, privKeyFile string, checkHostKey bool) error {
-  fabfile, _ := filepath.Abs(p.config.FabFile)
+	fabfile, _ := filepath.Abs(p.config.FabFile)
 	hoststring := fmt.Sprintf("%s@127.0.0.1:%s",
 		p.config.User, p.config.LocalPort)
 	var envvars []string
@@ -276,8 +276,8 @@ func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, priv
 	}
 	args = append(args, p.config.ExtraArguments...)
 
-	for _,task := range strings.Split(p.config.FabTasks, p.config.FabTasksDelimiter) {
-	        args = append(args, task)
+	for _, task := range strings.Split(p.config.FabTasks, p.config.FabTasksDelimiter) {
+		args = append(args, task)
 	}
 
 	if len(p.config.FabricEnvVars) > 0 {
