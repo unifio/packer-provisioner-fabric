@@ -1,8 +1,11 @@
+//go:generate mapstructure-to-hcl2 -type Config
+
 package main
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -23,6 +26,7 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
+	"github.com/hashicorp/hcl/v2/hcldec"
 	"github.com/hashicorp/packer/common"
 	"github.com/hashicorp/packer/helper/config"
 	"github.com/hashicorp/packer/packer"
@@ -162,7 +166,11 @@ func (p *Provisioner) getVersion() error {
 	return nil
 }
 
-func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
+func (p *Provisioner) ConfigSpec() hcldec.ObjectSpec {
+	return p.config.FlatMapstructure().HCL2Spec()
+}
+
+func (p *Provisioner) Provision(context context.Context, ui packer.Ui, comm packer.Communicator, generatedData map[string]interface{}) error {
 	ui.Say("Provisioning with Fabric...")
 
 	k, err := newUserKey(p.config.SSHAuthorizedKeyFile)
@@ -234,7 +242,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	}
 
 	ui = newUi(ui)
-	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm)
+	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm, context)
 
 	defer func() {
 		ui.Say("shutting down the SSH proxy")
@@ -474,6 +482,9 @@ func (ui *Ui) Machine(t string, args ...string) {
 	<-ui.sem
 }
 
-func (ui *Ui) ProgressBar() packer.ProgressBar {
-        return new(packer.NoopProgressBar)
-}	
+func (ui *Ui) TrackProgress(src string, currentSize, totalSize int64, stream io.ReadCloser) (body io.ReadCloser) {
+	ui.sem <- 1
+	ret := ui.ui.TrackProgress(src, currentSize, totalSize, stream)
+	<-ui.sem
+	return ret
+}

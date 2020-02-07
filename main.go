@@ -7,6 +7,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	server.RegisterProvisioner(&Provisioner{})
+	server.RegisterProvisioner(new(Provisioner))
 	server.Serve()
 }
