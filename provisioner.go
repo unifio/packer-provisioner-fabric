@@ -1,8 +1,11 @@
+//go:generate mapstructure-to-hcl2 -type Config
+
 package main
 
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
@@ -23,10 +26,11 @@ import (
 
 	"golang.org/x/crypto/ssh"
 
-	"github.com/mitchellh/packer/common"
-	"github.com/mitchellh/packer/helper/config"
-	"github.com/mitchellh/packer/packer"
-	"github.com/mitchellh/packer/template/interpolate"
+	"github.com/hashicorp/hcl/v2/hcldec"
+	"github.com/hashicorp/packer/common"
+	"github.com/hashicorp/packer/helper/config"
+	"github.com/hashicorp/packer/packer"
+	"github.com/hashicorp/packer/template/interpolate"
 )
 
 type Config struct {
@@ -42,14 +46,14 @@ type Config struct {
 	FabricEnvVars []string `mapstructure:"fabric_env_vars"`
 
 	// The main Fab file to execute.
-	FabFile              string   `mapstructure:"fab_file"`
-	FabTasks             string   `mapstructure:"fab_tasks"`
-	FabTasksDelimiter    string   `mapstructure:"fab_tasks_delimiter"`
-	User                 string   `mapstructure:"user"`
-	LocalPort            string   `mapstructure:"local_port"`
-	SSHHostKeyFile       string   `mapstructure:"ssh_host_key_file"`
-	SSHAuthorizedKeyFile string   `mapstructure:"ssh_authorized_key_file"`
-	SFTPCmd              string   `mapstructure:"sftp_command"`
+	FabFile              string `mapstructure:"fab_file"`
+	FabTasks             string `mapstructure:"fab_tasks"`
+	FabTasksDelimiter    string `mapstructure:"fab_tasks_delimiter"`
+	User                 string `mapstructure:"user"`
+	LocalPort            string `mapstructure:"local_port"`
+	SSHHostKeyFile       string `mapstructure:"ssh_host_key_file"`
+	SSHAuthorizedKeyFile string `mapstructure:"ssh_authorized_key_file"`
+	SFTPCmd              string `mapstructure:"sftp_command"`
 }
 
 type Provisioner struct {
@@ -162,7 +166,11 @@ func (p *Provisioner) getVersion() error {
 	return nil
 }
 
-func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
+func (p *Provisioner) ConfigSpec() hcldec.ObjectSpec {
+	return p.config.FlatMapstructure().HCL2Spec()
+}
+
+func (p *Provisioner) Provision(context context.Context, ui packer.Ui, comm packer.Communicator, generatedData map[string]interface{}) error {
 	ui.Say("Provisioning with Fabric...")
 
 	k, err := newUserKey(p.config.SSHAuthorizedKeyFile)
@@ -234,7 +242,7 @@ func (p *Provisioner) Provision(ui packer.Ui, comm packer.Communicator) error {
 	}
 
 	ui = newUi(ui)
-	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm)
+	p.adapter = newAdapter(p.done, localListener, config, p.config.SFTPCmd, ui, comm, context)
 
 	defer func() {
 		ui.Say("shutting down the SSH proxy")
@@ -262,7 +270,7 @@ func (p *Provisioner) Cancel() {
 }
 
 func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, privKeyFile string, checkHostKey bool) error {
-  fabfile, _ := filepath.Abs(p.config.FabFile)
+	fabfile, _ := filepath.Abs(p.config.FabFile)
 	hoststring := fmt.Sprintf("%s@127.0.0.1:%s",
 		p.config.User, p.config.LocalPort)
 	var envvars []string
@@ -276,8 +284,8 @@ func (p *Provisioner) executeFabric(ui packer.Ui, comm packer.Communicator, priv
 	}
 	args = append(args, p.config.ExtraArguments...)
 
-	for _,task := range strings.Split(p.config.FabTasks, p.config.FabTasksDelimiter) {
-	        args = append(args, task)
+	for _, task := range strings.Split(p.config.FabTasks, p.config.FabTasksDelimiter) {
+		args = append(args, task)
 	}
 
 	if len(p.config.FabricEnvVars) > 0 {
@@ -472,4 +480,11 @@ func (ui *Ui) Machine(t string, args ...string) {
 	ui.sem <- 1
 	ui.ui.Machine(t, args...)
 	<-ui.sem
+}
+
+func (ui *Ui) TrackProgress(src string, currentSize, totalSize int64, stream io.ReadCloser) (body io.ReadCloser) {
+	ui.sem <- 1
+	ret := ui.ui.TrackProgress(src, currentSize, totalSize, stream)
+	<-ui.sem
+	return ret
 }

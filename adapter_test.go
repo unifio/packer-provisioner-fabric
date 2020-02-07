@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"io"
 	"log"
@@ -9,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/mitchellh/packer/packer"
+	"github.com/hashicorp/packer/packer"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -26,7 +27,7 @@ func TestAdapter_Serve(t *testing.T) {
 
 	ui := new(ui)
 
-	sut := newAdapter(done, &l, config, "", newUi(ui), communicator{})
+	sut := newAdapter(done, &l, config, "", newUi(ui), communicator{}, nil)
 	go func() {
 		i := 0
 		for range acceptC {
@@ -123,9 +124,13 @@ func (u *ui) Machine(s1 string, s2 ...string) {
 	}
 }
 
+func (u *ui) TrackProgress(src string, currentSize, totalSize int64, stream io.ReadCloser) (body io.ReadCloser) {
+	return nil
+}
+
 type communicator struct{}
 
-func (c communicator) Start(*packer.RemoteCmd) error {
+func (c communicator) Start(context.Context, *packer.RemoteCmd) error {
 	return errors.New("communicator not supported")
 }
 

@@ -1,12 +1,12 @@
 package main
 
-import "github.com/mitchellh/packer/packer/plugin"
+import "github.com/hashicorp/packer/packer/plugin"
 
 func main() {
 	server, err := plugin.Server()
 	if err != nil {
 		panic(err)
 	}
-	server.RegisterProvisioner(&Provisioner{})
+	server.RegisterProvisioner(new(Provisioner))
 	server.Serve()
 }

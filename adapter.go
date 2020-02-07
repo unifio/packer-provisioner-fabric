@@ -2,13 +2,14 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
 	"net"
 
-	"github.com/mitchellh/packer/packer"
+	"github.com/hashicorp/packer/packer"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -19,9 +20,10 @@ type adapter struct {
 	sftpCmd string
 	ui      packer.Ui
 	comm    packer.Communicator
+	context context.Context
 }
 
-func newAdapter(done <-chan struct{}, l net.Listener, config *ssh.ServerConfig, sftpCmd string, ui packer.Ui, comm packer.Communicator) *adapter {
+func newAdapter(done <-chan struct{}, l net.Listener, config *ssh.ServerConfig, sftpCmd string, ui packer.Ui, comm packer.Communicator, context context.Context) *adapter {
 	return &adapter{
 		done:    done,
 		l:       l,
@@ -29,6 +31,7 @@ func newAdapter(done <-chan struct{}, l net.Listener, config *ssh.ServerConfig, 
 		sftpCmd: sftpCmd,
 		ui:      ui,
 		comm:    comm,
+		context: context,
 	}
 }
 
@@ -130,7 +133,7 @@ func (c *adapter) handleSession(newChannel ssh.NewChannel) error {
 						Command: string(req.Payload),
 					}
 
-					if err := c.comm.Start(cmd); err != nil {
+					if err := c.comm.Start(c.context, cmd); err != nil {
 						c.ui.Error(err.Error())
 						close(done)
 						return
@@ -139,7 +142,7 @@ func (c *adapter) handleSession(newChannel ssh.NewChannel) error {
 						cmd.Wait()
 
 						exitStatus := make([]byte, 4)
-						binary.BigEndian.PutUint32(exitStatus, uint32(cmd.ExitStatus))
+						binary.BigEndian.PutUint32(exitStatus, uint32(cmd.ExitStatus()))
 						channel.SendRequest("exit-status", false, exitStatus)
 						close(done)
 					}(cmd, channel)
@@ -167,7 +170,7 @@ func (c *adapter) handleSession(newChannel ssh.NewChannel) error {
 						Command: sftpCmd,
 					}
 
-					if err := c.comm.Start(cmd); err != nil {
+					if err := c.comm.Start(c.context, cmd); err != nil {
 						c.ui.Error(err.Error())
 					}
 
